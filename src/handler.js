@@ -3,16 +3,18 @@ import { env } from 'ENV';
 import { manifest, prerendered } from 'MANIFEST';
 import { Server } from 'SERVER';
 import { readFileSync } from 'node:fs';
-import { dirname, join, extname } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-function d(e){return "rawPath"in e}function p(e){return "requestContext"in e&&"elb"in e.requestContext}function h(e){return d(e)?e.requestContext.domainName||e.headers?.host||"localhost":p(e)?e.headers?.host||e.multiValueHeaders?.host?.[0]||"localhost":e.requestContext.domainName||e.headers?.host||"localhost"}function g(e){return d(e)?e.rawPath:e.path}function b(e){return d(e)?e.requestContext.http.method:e.httpMethod}function y(e){return d(e)?e.rawQueryString||"":e.multiValueQueryStringParameters?Object.entries(e.multiValueQueryStringParameters).filter(([,t])=>t&&t.length>0).flatMap(([t,n])=>n.map(r=>`${encodeURIComponent(t)}=${encodeURIComponent(r)}`)).join("&"):e.queryStringParameters?Object.entries(e.queryStringParameters).filter(([,t])=>t!=null).map(([t,n])=>`${encodeURIComponent(t)}=${encodeURIComponent(n)}`).join("&"):""}function E(e){let t=new Headers;return d(e)?(e.headers&&Object.entries(e.headers).forEach(([n,r])=>{r!=null&&t.set(n,r);}),e.cookies?.length&&t.set("cookie",e.cookies.join("; "))):(e.headers&&Object.entries(e.headers).forEach(([n,r])=>{r!=null&&t.set(n,r);}),e.multiValueHeaders&&Object.entries(e.multiValueHeaders).forEach(([n,r])=>{if(r?.length){let o=t.get(n);r.forEach(s=>{(!o||!o.includes(s))&&t.append(n,s);});}})),t}function R(e){return e.body?e.isBase64Encoded?Buffer.from(e.body,"base64"):e.body:null}function u(e){let t=h(e),n=g(e),r=b(e),o=y(e),s=E(e),a=R(e),i=new URL(n,`https://${t}`);return o&&(i.search=o),new Request(i,{method:r,headers:s,body:a})}function x(e,t=[]){let n=e.headers.get("content-type")||"",r=e.headers.get("content-encoding");return r&&/^(gzip|deflate|compress|br)/.test(r)?true:t.length>0?t.some(o=>n.includes(o)||o==="*/*"||o.endsWith("/*")&&n.startsWith(o.slice(0,-2))):!/^(text\/(plain|html|css|javascript|csv).*|application\/(.*json|.*xml).*|image\/svg\+xml.*)$/.test(n)}function L(e){if(!e.headers.has("set-cookie"))return [];if("getSetCookie"in e.headers&&typeof e.headers.getSetCookie=="function")return e.headers.getSetCookie();let t=[];return e.headers.forEach((n,r)=>{r.toLowerCase()==="set-cookie"&&t.push(n);}),t}function m(e,t=false){if(t){let r={};return e.headers.forEach((o,s)=>{s.toLowerCase()!=="set-cookie"&&(r[s]?r[s].push(o):r[s]=[o]);}),r}let n={};return e.headers.forEach((r,o)=>{o.toLowerCase()!=="set-cookie"&&(n[o]=r);}),n}async function l(e,t={}){let{binaryMediaTypes:n=[],multiValueHeaders:r=false}=t,o=await e.text(),s=x(e,n),a=L(e),i={statusCode:e.status,body:s?Buffer.from(o).toString("base64"):o,isBase64Encoded:s};if(r){let c={...i,multiValueHeaders:m(e,true)};return a.length>0&&(c.multiValueHeaders={...c.multiValueHeaders,"Set-Cookie":a}),c}let f={...i,headers:m(e,false)};return a.length>0&&(f.multiValueHeaders={"Set-Cookie":a}),f}
+import {
+  convertLambdaEventToWebRequest,
+  convertWebResponseToLambdaEvent,
+} from '@foladayo/lambda-adapter-kit';
 
 /* global ENV_PREFIX */
 
 const server = new Server(manifest);
 
-Number.parseInt(env('BODY_SIZE_LIMIT', 'BODY_SIZE_LIMIT'));
+const _body_size_limit = Number.parseInt(env('BODY_SIZE_LIMIT', 'BODY_SIZE_LIMIT'));
 const binaryMediaTypes = BINARY_MEDIA_TYPES;
 
 // Get the directory of this handler file
@@ -134,16 +136,16 @@ async function tryServeStaticFile(pathname) {
  * @param {any} context
  * @returns {Promise<any>}
  */
-const handler = async (event, context) => {
+export const handler = async (event, context) => {
   try {
-    const webRequest = u(event);
+    const webRequest = convertLambdaEventToWebRequest(event);
     const pathname = new URL(webRequest.url).pathname;
 
     if (prerendered.has(pathname)) {
     } else if (isStaticAsset(pathname)) {
       const staticFileResponse = await tryServeStaticFile(pathname);
       if (staticFileResponse) {
-        return await l(staticFileResponse, {
+        return await convertWebResponseToLambdaEvent(staticFileResponse, {
           binaryMediaTypes,
           multiValueHeaders: isALBEvent(event),
         });
@@ -160,7 +162,7 @@ const handler = async (event, context) => {
       getClientAddress: () => extractClientIp(event),
     });
 
-    return await l(response, {
+    return await convertWebResponseToLambdaEvent(response, {
       binaryMediaTypes,
       multiValueHeaders: isALBEvent(event),
     });
@@ -178,5 +180,3 @@ const handler = async (event, context) => {
     };
   }
 };
-
-export { handler };

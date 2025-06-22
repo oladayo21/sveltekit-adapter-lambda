@@ -1,7 +1,32 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LambdaAdapterOptions, SvelteKitBuilder } from '../src/index.js';
-import adapter from '../src/index.js';
+import type { LambdaAdapterOptions } from '../index.d.ts';
+import adapter from '../index.js';
+
+interface SvelteKitBuilder {
+  log: {
+    minor(message: string): void;
+    success(message: string): void;
+  };
+  rimraf(path: string): void;
+  writeClient(path: string): void;
+  writePrerendered(path: string): void;
+  writeServer(path: string): void;
+  mkdirp(path: string): void;
+  copy(
+    from: string,
+    to: string,
+    opts?: {
+      filter?: (basename: string) => boolean;
+      replace?: Record<string, string>;
+    }
+  ): void;
+  getBuildDirectory(name: string): string;
+  generateManifest(opts: { relativePath: string }): string;
+  prerendered: { paths: string[] };
+  config: { kit: { paths: { base: string } } };
+  compress?(dir: string): Promise<void>;
+}
 
 // Mock fs functions
 vi.mock('node:fs', () => ({

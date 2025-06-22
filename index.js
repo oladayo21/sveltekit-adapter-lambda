@@ -5,51 +5,10 @@ import json from '@rollup/plugin-json';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import { rollup } from 'rollup';
 
-// SvelteKit Lambda adapter implementation
+const files = fileURLToPath(new URL('./files', import.meta.url).href);
 
-const files = fileURLToPath(new URL('../files', import.meta.url).href);
-
-export interface LambdaAdapterOptions {
-  /** Output directory for the Lambda function */
-  out?: string;
-  /** Whether to precompress static assets */
-  precompress?: boolean;
-  /** Binary media types for Lambda response encoding */
-  binaryMediaTypes?: string[];
-  /** Environment variable prefix */
-  envPrefix?: string;
-  /** Body size limit in bytes (default: 6MB) */
-  bodySizeLimit?: number;
-  /** Additional external dependencies to exclude from bundle */
-  external?: string[];
-}
-
-export interface SvelteKitBuilder {
-  log: {
-    minor(message: string): void;
-    success(message: string): void;
-  };
-  rimraf(path: string): void;
-  writeClient(path: string): void;
-  writePrerendered(path: string): void;
-  writeServer(path: string): void;
-  mkdirp(path: string): void;
-  copy(
-    from: string,
-    to: string,
-    opts?: {
-      filter?: (basename: string) => boolean;
-      replace?: Record<string, string>;
-    }
-  ): void;
-  getBuildDirectory(name: string): string;
-  generateManifest(opts: { relativePath: string }): string;
-  prerendered: { paths: string[] };
-  config: { kit: { paths: { base: string } } };
-  compress?(dir: string): Promise<void>;
-}
-
-export default function adapter(options: LambdaAdapterOptions = {}) {
+/** @type {import('./index.js').default} */
+export default function adapter(options = {}) {
   const {
     out = 'build',
     precompress = false,
@@ -61,7 +20,7 @@ export default function adapter(options: LambdaAdapterOptions = {}) {
 
   return {
     name: '@foladayo/sveltekit-adapter-lambda',
-    async adapt(builder: SvelteKitBuilder) {
+    async adapt(builder) {
       const tmp = builder.getBuildDirectory('sveltekit-adapter-lambda');
 
       builder.rimraf(out);
@@ -104,19 +63,10 @@ export default function adapter(options: LambdaAdapterOptions = {}) {
           manifest: `${tmp}/manifest.js`,
         },
         external: [
-          // AWS SDK is available in Lambda runtime
-          '@aws-sdk/client-s3',
-          '@aws-sdk/client-dynamodb',
-          'aws-lambda',
-          // SvelteKit Node utilities
-          '@sveltejs/kit/node',
-          '@sveltejs/kit/node/polyfills',
+          // Dependencies could have deep exports, so we need a regex
+          ...Object.keys(pkg.dependencies || {}).map((d) => new RegExp(`^${d}(\\/.*)?$`)),
           // User-specified external dependencies
           ...external,
-          // All package dependencies except our core lambda-adapter-kit
-          ...Object.keys(pkg.dependencies || {})
-            .filter((dep) => dep !== '@foladayo/lambda-adapter-kit')
-            .map((d) => new RegExp(`^${d}(\\/.*)?$`)),
         ],
         plugins: [
           nodeResolve({

@@ -95,6 +95,6 @@ adapter({
 
 ## Requirements
 
-- **Node.js**: 22+ (LTS)
+- **Node.js**: 20+ (LTS)
 - **SvelteKit**: 2.0+
-- **AWS Lambda**: nodejs22.x runtime
+- **AWS Lambda**: nodejs20.x runtime

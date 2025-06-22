@@ -3,22 +3,23 @@
   "version": "1.0.1-2",
   "description": "SvelteKit adapter for AWS Lambda deployment",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
+      "import": "./index.js",
+      "types": "./index.d.ts"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist",
-    "files"
+    "files",
+    "index.js",
+    "index.d.ts",
+    "README.md"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
+    "build": "node -e \"fs.rmSync('files', { force: true, recursive: true })\" && rollup -c",
+    "dev": "rollup -c --watch",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest --coverage",
@@ -39,7 +40,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@foladayo/lambda-adapter-kit": "1.0.3-0",
     "@rollup/plugin-commonjs": "^28.0.6",
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^16.0.1",
@@ -47,9 +47,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.4",
+    "@foladayo/lambda-adapter-kit": "1.0.3-0",
     "@types/node": "^24.0.3",
     "@vitest/coverage-v8": "^3.2.4",
-    "tsup": "^8.5.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   },
