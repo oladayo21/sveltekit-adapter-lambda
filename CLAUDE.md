@@ -95,3 +95,8 @@ Templates use placeholder replacement (ENV, HANDLER, MANIFEST, etc.) during buil
 ## Development Principles
 
 - Always run all necessary checks after you create code to make sure everything works as they should
+- Before committing and pushing to main, run the following checks:
+  - `pnpm lint` to ensure code quality
+  - `pnpm typecheck` to validate TypeScript types
+  - `pnpm test:run` to confirm all tests pass
+  - `pnpm build` to verify the build process works correctly
