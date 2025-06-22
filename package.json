@@ -39,16 +39,16 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@foladayo/lambda-adapter-kit": "1.0.3-0"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.0.4",
+    "@foladayo/lambda-adapter-kit": "1.0.3-0",
     "@rollup/plugin-commonjs": "^28.0.6",
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^16.0.1",
+    "rollup": "^4.44.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.4",
     "@types/node": "^24.0.3",
     "@vitest/coverage-v8": "^3.2.4",
-    "rollup": "^4.44.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
