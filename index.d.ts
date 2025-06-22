@@ -46,4 +46,12 @@ declare function adapter(options?: LambdaAdapterOptions): {
   };
 };
 
+declare global {
+  const ENV_PREFIX: string;
+  const HANDLER: string;
+  const MANIFEST: string;
+  const SERVER: string;
+  const SHIMS: string;
+}
+
 export default adapter;
