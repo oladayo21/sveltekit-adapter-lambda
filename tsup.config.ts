@@ -12,10 +12,13 @@ export default defineConfig({
   treeshake: true,
   minify: false,
   external: [
-    // Core utilities dependency
-    '@foladayo/lambda-adapter-kit',
     // SvelteKit peer dependency
     '@sveltejs/kit',
+    // Rollup build tools (available in user's environment)
+    'rollup',
+    '@rollup/plugin-commonjs',
+    '@rollup/plugin-json',
+    '@rollup/plugin-node-resolve',
     // Node.js built-ins
     'node:fs',
     'node:url',
