@@ -1,0 +1,106 @@
+name: Bug Report
+description: Report a bug with the SvelteKit Lambda adapter
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  
+  - type: input
+    id: version
+    attributes:
+      label: Package Version
+      description: What version of @foladayo/sveltekit-adapter-lambda are you using?
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  
+  - type: input
+    id: sveltekit-version
+    attributes:
+      label: SvelteKit Version
+      description: What version of SvelteKit are you using?
+      placeholder: "2.0.0"
+    validations:
+      required: true
+  
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js Version
+      description: What version of Node.js are you using?
+      placeholder: "20.0.0"
+    validations:
+      required: true
+  
+  - type: dropdown
+    id: lambda-event-type
+    attributes:
+      label: Lambda Event Type
+      description: What type of Lambda event are you using?
+      options:
+        - API Gateway v1 (REST API)
+        - API Gateway v2 (HTTP API)
+        - Application Load Balancer (ALB)
+        - Lambda Function URLs
+        - Other
+    validations:
+      required: true
+  
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Tell us what happened!
+    validations:
+      required: true
+  
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Configure adapter with...
+        2. Build the project with...
+        3. Deploy to Lambda...
+        4. See error...
+    validations:
+      required: true
+  
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  
+  - type: textarea
+    id: config
+    attributes:
+      label: Adapter Configuration
+      description: Your svelte.config.js adapter configuration
+      render: javascript
+      placeholder: |
+        adapter({
+          out: 'build',
+          precompress: false,
+          // ... other options
+        })
+  
+  - type: textarea
+    id: logs
+    attributes:
+      label: Build/Runtime Logs
+      description: Any relevant build or runtime logs
+      render: shell
+  
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here.
