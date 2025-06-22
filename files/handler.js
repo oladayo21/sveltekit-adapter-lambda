@@ -1,6 +1,6 @@
 import 'SHIMS';
 import { env } from 'ENV';
-import { manifest } from 'MANIFEST';
+import { manifest, prerendered, base } from 'MANIFEST';
 import { Server } from 'SERVER';
 // 🔥 Use our robust converters instead of basic event parsing
 import {
@@ -8,9 +8,6 @@ import {
   convertWebResponseToLambdaEvent,
 } from '@foladayo/lambda-adapter-kit';
 import { getRequest } from '@sveltejs/kit/node';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, extname } from 'node:path';
 
 /* global ENV_PREFIX */
 
@@ -18,9 +15,6 @@ const server = new Server(manifest);
 
 const body_size_limit = Number.parseInt(env('BODY_SIZE_LIMIT', 'BODY_SIZE_LIMIT'));
 const binaryMediaTypes = BINARY_MEDIA_TYPES;
-
-// Get the directory of this handler file
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 await server.init({
   env: process.env,
@@ -90,50 +84,24 @@ function isALBEvent(event) {
 }
 
 /**
- * Serve static files from the bundled client directory
- * @param {string} path - The requested path
- * @returns {Promise<Response|null>} - Response for static file or null if not found
+ * Check if request is for static assets
+ * @param {string} pathname
+ * @returns {boolean}
  */
-async function tryServeStaticFile(path) {
-  // Handle client assets (JS, CSS, etc.)
-  if (path.startsWith('/_app/') || path.startsWith('/favicon.ico')) {
-    try {
-      const filePath = join(__dirname, 'client', path);
-      const content = readFileSync(filePath);
-      
-      // Determine content type
-      const ext = extname(path).toLowerCase();
-      const contentType = {
-        '.js': 'application/javascript',
-        '.css': 'text/css',
-        '.ico': 'image/x-icon',
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.svg': 'image/svg+xml',
-        '.woff': 'font/woff',
-        '.woff2': 'font/woff2',
-        '.ttf': 'font/ttf',
-        '.eot': 'application/vnd.ms-fontobject'
-      }[ext] || 'application/octet-stream';
-      
-      return new Response(content, {
-        status: 200,
-        headers: {
-          'Content-Type': contentType,
-          'Cache-Control': path.includes('/immutable/') 
-            ? 'public, max-age=31536000, immutable'
-            : 'public, max-age=3600'
-        }
-      });
-    } catch (error) {
-      // File not found or error reading
-      return null;
-    }
-  }
-  
-  return null;
+function isStaticAsset(pathname) {
+    return pathname.startsWith(`${base}/_app/`) || 
+           pathname.startsWith(`${base}/favicon.`) ||
+           pathname.endsWith('.css') ||
+           pathname.endsWith('.js') ||
+           pathname.endsWith('.woff') ||
+           pathname.endsWith('.woff2') ||
+           pathname.endsWith('.png') ||
+           pathname.endsWith('.jpg') ||
+           pathname.endsWith('.jpeg') ||
+           pathname.endsWith('.gif') ||
+           pathname.endsWith('.svg') ||
+           pathname.endsWith('.webp') ||
+           pathname.endsWith('.ico');
 }
 
 /**
@@ -146,14 +114,18 @@ export const handler = async (event, context) => {
   try {
     // 🔥 Use our superior event conversion (handles all Lambda event types)
     const webRequest = convertLambdaEventToWebRequest(event);
+    const pathname = new URL(webRequest.url).pathname;
     
-    // Try to serve static files first
-    const staticFileResponse = await tryServeStaticFile(new URL(webRequest.url).pathname);
-    if (staticFileResponse) {
-      return await convertWebResponseToLambdaEvent(staticFileResponse, {
-        binaryMediaTypes,
-        multiValueHeaders: isALBEvent(event),
-      });
+    // Check for prerendered routes
+    if (prerendered.has(pathname)) {
+        // Let SvelteKit handle prerendered routes
+        // Fall through to normal processing
+    }
+
+    // Static assets - let SvelteKit handle them
+    if (isStaticAsset(pathname)) {
+        // Let SvelteKit handle static assets
+        // Fall through to normal processing
     }
 
     // Convert to Node.js request format for SvelteKit
