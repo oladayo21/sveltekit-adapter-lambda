@@ -8,6 +8,9 @@ import {
   convertWebResponseToLambdaEvent,
 } from '@foladayo/lambda-adapter-kit';
 import { getRequest } from '@sveltejs/kit/node';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join, extname } from 'node:path';
 
 /* global ENV_PREFIX */
 
@@ -15,6 +18,9 @@ const server = new Server(manifest);
 
 const body_size_limit = Number.parseInt(env('BODY_SIZE_LIMIT', 'BODY_SIZE_LIMIT'));
 const binaryMediaTypes = BINARY_MEDIA_TYPES;
+
+// Get the directory of this handler file
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 await server.init({
   env: process.env,
@@ -84,6 +90,53 @@ function isALBEvent(event) {
 }
 
 /**
+ * Serve static files from the bundled client directory
+ * @param {string} path - The requested path
+ * @returns {Promise<Response|null>} - Response for static file or null if not found
+ */
+async function tryServeStaticFile(path) {
+  // Handle client assets (JS, CSS, etc.)
+  if (path.startsWith('/_app/') || path.startsWith('/favicon.ico')) {
+    try {
+      const filePath = join(__dirname, 'client', path);
+      const content = readFileSync(filePath);
+      
+      // Determine content type
+      const ext = extname(path).toLowerCase();
+      const contentType = {
+        '.js': 'application/javascript',
+        '.css': 'text/css',
+        '.ico': 'image/x-icon',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2',
+        '.ttf': 'font/ttf',
+        '.eot': 'application/vnd.ms-fontobject'
+      }[ext] || 'application/octet-stream';
+      
+      return new Response(content, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': path.includes('/immutable/') 
+            ? 'public, max-age=31536000, immutable'
+            : 'public, max-age=3600'
+        }
+      });
+    } catch (error) {
+      // File not found or error reading
+      return null;
+    }
+  }
+  
+  return null;
+}
+
+/**
  * AWS Lambda handler with hybrid architecture
  * @param {any} event - Lambda Function URL, API Gateway, or ALB event
  * @param {import('aws-lambda').Context} context
@@ -93,6 +146,15 @@ export const handler = async (event, context) => {
   try {
     // 🔥 Use our superior event conversion (handles all Lambda event types)
     const webRequest = convertLambdaEventToWebRequest(event);
+    
+    // Try to serve static files first
+    const staticFileResponse = await tryServeStaticFile(new URL(webRequest.url).pathname);
+    if (staticFileResponse) {
+      return await convertWebResponseToLambdaEvent(staticFileResponse, {
+        binaryMediaTypes,
+        multiValueHeaders: isALBEvent(event),
+      });
+    }
 
     // Convert to Node.js request format for SvelteKit
     const nodeRequest = convertWebRequestToNodeRequest(webRequest, event);
