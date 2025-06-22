@@ -1,6 +1,6 @@
 {
   "name": "@foladayo/sveltekit-adapter-lambda",
-  "version": "1.0.1-0",
+  "version": "1.0.1-1",
   "description": "SvelteKit adapter for AWS Lambda deployment",
   "type": "module",
   "main": "./dist/index.js",
