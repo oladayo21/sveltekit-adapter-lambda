@@ -52,6 +52,8 @@ declare global {
   const MANIFEST: string;
   const SERVER: string;
   const SHIMS: string;
+  const BINARY_MEDIA_TYPES: string[];
+  const BODY_SIZE_LIMIT: string;
 }
 
 export default adapter;

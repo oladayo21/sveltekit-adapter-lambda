@@ -30,6 +30,9 @@ importers:
       '@foladayo/lambda-adapter-kit':
         specifier: 1.0.3-0
         version: 1.0.3-0
+      '@types/aws-lambda':
+        specifier: ^8.10.150
+        version: 8.10.150
       '@types/node':
         specifier: ^24.0.3
         version: 24.0.3
@@ -473,6 +476,9 @@ packages:
     peerDependencies:
       svelte: ^5.0.0
       vite: ^6.0.0
+
+  '@types/aws-lambda@8.10.150':
+    resolution: {integrity: sha512-AX+AbjH/rH5ezX1fbK8onC/a+HyQHo7QGmvoxAE42n22OsciAxvZoZNEr22tbXs8WfP1nIsBjKDpgPm3HjOZbA==}
 
   '@types/chai@5.2.2':
     resolution: {integrity: sha512-8kB30R7Hwqf40JPiKhVzodJs2Qc1ZJ5zuT3uzw5Hq/dhNCl3G3l83jfpdI1e20BP348+fV7VIL/+FxaXkqBmWg==}
@@ -1344,6 +1350,8 @@ snapshots:
       vitefu: 1.0.7(vite@6.3.5(@types/node@24.0.3))
     transitivePeerDependencies:
       - supports-color
+
+  '@types/aws-lambda@8.10.150': {}
 
   '@types/chai@5.2.2':
     dependencies:
