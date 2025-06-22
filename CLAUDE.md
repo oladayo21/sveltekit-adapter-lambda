@@ -91,3 +91,7 @@ Templates use placeholder replacement (ENV, HANDLER, MANIFEST, etc.) during buil
 - No comments for comments' sake - avoid obvious or redundant explanations
 - Focus on explaining "why" rather than "what" for non-obvious implementation details
 - Document SvelteKit integration points and Lambda-specific optimizations
+
+## Development Principles
+
+- Always run all necessary checks after you create code to make sure everything works as they should
