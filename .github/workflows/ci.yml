@@ -45,6 +45,9 @@ jobs:
       - name: Test build
         run: pnpm build
 
+      - name: Pre-release build
+        run: pnpm dlx pkg-pr-new publish
+
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
