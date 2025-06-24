@@ -16,6 +16,7 @@ const server = new Server(manifest);
 
 const _body_size_limit = Number.parseInt(env('BODY_SIZE_LIMIT', 'BODY_SIZE_LIMIT'));
 const binaryMediaTypes = BINARY_MEDIA_TYPES;
+const serveStatic = SERVE_STATIC;
 
 // Get the directory of this handler file
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -142,7 +143,8 @@ export const handler = async (event, context) => {
     const pathname = new URL(webRequest.url).pathname;
 
     if (prerendered.has(pathname)) {
-    } else if (isStaticAsset(pathname)) {
+      //TODO: Handle prerendered pages
+    } else if (serveStatic && isStaticAsset(pathname)) {
       const staticFileResponse = await tryServeStaticFile(pathname);
       if (staticFileResponse) {
         return await convertWebResponseToLambdaEvent(staticFileResponse, {

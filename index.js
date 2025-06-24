@@ -16,6 +16,7 @@ export default function adapter(options = {}) {
     binaryMediaTypes = [],
     bodySizeLimit = 6291456, // 6MB default
     external = [],
+    serveStatic = false,
   } = options;
 
   return {
@@ -96,6 +97,7 @@ export default function adapter(options = {}) {
           ENV_PREFIX: JSON.stringify(envPrefix),
           BINARY_MEDIA_TYPES: JSON.stringify(binaryMediaTypes),
           BODY_SIZE_LIMIT: bodySizeLimit.toString(),
+          SERVE_STATIC: JSON.stringify(serveStatic),
         },
       });
 

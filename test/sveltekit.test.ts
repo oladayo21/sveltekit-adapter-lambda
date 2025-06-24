@@ -183,6 +183,7 @@ describe('SvelteKit Lambda Adapter', () => {
           ENV_PREFIX: '"MY_APP_"',
           BINARY_MEDIA_TYPES: '["image/*","application/pdf"]',
           BODY_SIZE_LIMIT: '1048576',
+          SERVE_STATIC: 'false',
         },
       });
     });

@@ -50,11 +50,34 @@ export default {
       binaryMediaTypes: ['image/*'],     // Binary content types for base64 encoding
       bodySizeLimit: 6291456,           // Body size limit in bytes (6MB default)
       envPrefix: 'MY_APP_',             // Environment variable prefix
-      external: ['@aws-sdk/client-s3']   // Additional external dependencies
+      external: ['@aws-sdk/client-s3'],  // Additional external dependencies
+      serveStatic: false                 // Serve static assets from Lambda (default: false)
     })
   }
 };
 ```
+
+## Static Asset Serving
+
+By default, this adapter is optimized for **SSR (Server-Side Rendering) only** and does not serve static assets from Lambda. 
+
+### Recommended Setup (Default)
+```javascript
+adapter({
+  serveStatic: false // Default - Lambda handles SSR only
+})
+```
+
+Use **CloudFront + S3** to serve static assets for optimal performance and cost efficiency.
+
+### Lambda Static Serving (Not Recommended)
+```javascript
+adapter({
+  serveStatic: true // Serves static assets from Lambda
+})
+```
+
+⚠️ **Warning**: Serving static assets from Lambda is not ideal as it increases costs and latency. Lambda is designed for dynamic content. For production applications, use CloudFront + S3 for static assets and Lambda only for SSR.
 
 ## Lambda Handler
 

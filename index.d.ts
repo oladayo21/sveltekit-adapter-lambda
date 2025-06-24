@@ -11,6 +11,8 @@ export interface LambdaAdapterOptions {
   bodySizeLimit?: number;
   /** Additional external dependencies to exclude from bundle */
   external?: string[];
+  /** Whether to serve static assets from Lambda (default: false) */
+  serveStatic?: boolean;
 }
 
 interface SvelteKitBuilder {
@@ -54,6 +56,7 @@ declare global {
   const SHIMS: string;
   const BINARY_MEDIA_TYPES: string[];
   const BODY_SIZE_LIMIT: string;
+  const SERVE_STATIC: boolean;
 }
 
 export default adapter;
