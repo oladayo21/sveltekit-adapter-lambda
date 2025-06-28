@@ -34,8 +34,8 @@ importers:
         specifier: 1.0.3-0
         version: 1.0.3-0
       '@foladayo/web-file-server':
-        specifier: ^0.0.2-0
-        version: 0.0.2-0
+        specifier: ^1.0.0
+        version: 1.0.0
       '@types/aws-lambda':
         specifier: ^8.10.150
         version: 8.10.150
@@ -285,8 +285,8 @@ packages:
   '@foladayo/lambda-adapter-kit@1.0.3-0':
     resolution: {integrity: sha512-lRGYNEx1C1hWWkve5LWw7vpSnlTuSrE7Y6DD4v5y4fk84rADfyALMb9DLW47/bPN9lU1Rr73ckiKofuowxHkGg==}
 
-  '@foladayo/web-file-server@0.0.2-0':
-    resolution: {integrity: sha512-Skz+Z6UCb8Z0+aaOD1uhY/IoxjJZ8JJ9hY1oBjqvrtk9f3lBm8RtxKzytEyYRO8QHXQAvosasVEK5Ny89FtBbw==}
+  '@foladayo/web-file-server@1.0.0':
+    resolution: {integrity: sha512-HFN8nN5jotQAn6sgfQYA9HuqfCYcCMR/k/AIxhmO9d5bJhwp3MssXoemy3rcSOPlbB4h7+IxF2ID4xjMFfkMdQ==}
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -1189,7 +1189,7 @@ snapshots:
 
   '@foladayo/lambda-adapter-kit@1.0.3-0': {}
 
-  '@foladayo/web-file-server@0.0.2-0': {}
+  '@foladayo/web-file-server@1.0.0': {}
 
   '@isaacs/cliui@8.0.2':
     dependencies:
