@@ -4,6 +4,7 @@ import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import { rollup } from 'rollup';
+import invariant from 'tiny-invariant';
 
 const files = fileURLToPath(new URL('./files', import.meta.url).href);
 
@@ -18,6 +19,39 @@ export default function adapter(options = {}) {
     external = [],
     serveStatic = false,
   } = options;
+
+  // Validate configuration options using tiny-invariant
+  invariant(
+    typeof out === 'string' && out.trim() !== '',
+    'Option "out" must be a non-empty string'
+  );
+  invariant(typeof precompress === 'boolean', 'Option "precompress" must be a boolean');
+  invariant(typeof envPrefix === 'string', 'Option "envPrefix" must be a string');
+  invariant(Array.isArray(binaryMediaTypes), 'Option "binaryMediaTypes" must be an array');
+
+  // Validate binaryMediaTypes contains valid MIME patterns
+  for (const mediaType of binaryMediaTypes) {
+    invariant(
+      typeof mediaType === 'string' && mediaType.trim() !== '',
+      'All items in "binaryMediaTypes" must be non-empty strings'
+    );
+  }
+
+  invariant(
+    typeof bodySizeLimit === 'number' && bodySizeLimit > 0 && Number.isInteger(bodySizeLimit),
+    'Option "bodySizeLimit" must be a positive integer'
+  );
+
+  invariant(Array.isArray(external), 'Option "external" must be an array');
+
+  for (const ext of external) {
+    const isString = typeof ext === 'string';
+    const isRegExp =
+      ext && typeof ext === 'object' && Object.prototype.toString.call(ext) === '[object RegExp]';
+    invariant(isString || isRegExp, 'All items in "external" must be strings or RegExp objects');
+  }
+
+  invariant(typeof serveStatic === 'boolean', 'Option "serveStatic" must be a boolean');
 
   return {
     name: '@foladayo/sveltekit-adapter-lambda',

@@ -253,4 +253,101 @@ describe('SvelteKit Lambda Adapter', () => {
       expect(mockBuilder.log.success).toHaveBeenCalledWith('AWS Lambda adapter complete');
     });
   });
+
+  describe('configuration validation', () => {
+    /* biome-ignore lint/suspicious/noExplicitAny: Testing with invalid types requires any */
+    it('should validate out option', () => {
+      expect(() => adapter({ out: '' })).toThrow('Option "out" must be a non-empty string');
+      expect(() => adapter({ out: 123 as any })).toThrow('Option "out" must be a non-empty string');
+    });
+
+    it('should validate precompress option', () => {
+      expect(() => adapter({ precompress: 'true' as any })).toThrow(
+        'Option "precompress" must be a boolean'
+      );
+      expect(() => adapter({ precompress: 1 as any })).toThrow(
+        'Option "precompress" must be a boolean'
+      );
+    });
+
+    it('should validate envPrefix option', () => {
+      expect(() => adapter({ envPrefix: 123 as any })).toThrow(
+        'Option "envPrefix" must be a string'
+      );
+      expect(() => adapter({ envPrefix: null as any })).toThrow(
+        'Option "envPrefix" must be a string'
+      );
+    });
+
+    it('should validate binaryMediaTypes option', () => {
+      expect(() => adapter({ binaryMediaTypes: 'image/*' as any })).toThrow(
+        'Option "binaryMediaTypes" must be an array'
+      );
+      expect(() => adapter({ binaryMediaTypes: [123] as any })).toThrow(
+        'All items in "binaryMediaTypes" must be non-empty strings'
+      );
+      expect(() => adapter({ binaryMediaTypes: [''] })).toThrow(
+        'All items in "binaryMediaTypes" must be non-empty strings'
+      );
+    });
+
+    it('should validate bodySizeLimit option', () => {
+      expect(() => adapter({ bodySizeLimit: 0 })).toThrow(
+        'Option "bodySizeLimit" must be a positive integer'
+      );
+      expect(() => adapter({ bodySizeLimit: -1 })).toThrow(
+        'Option "bodySizeLimit" must be a positive integer'
+      );
+      expect(() => adapter({ bodySizeLimit: 1.5 })).toThrow(
+        'Option "bodySizeLimit" must be a positive integer'
+      );
+      expect(() => adapter({ bodySizeLimit: 'large' as any })).toThrow(
+        'Option "bodySizeLimit" must be a positive integer'
+      );
+    });
+
+    it('should validate external option', () => {
+      expect(() => adapter({ external: 'module' as any })).toThrow(
+        'Option "external" must be an array'
+      );
+      expect(() => adapter({ external: [123] as any })).toThrow(
+        'All items in "external" must be strings or RegExp objects'
+      );
+    });
+
+    it('should validate serveStatic option', () => {
+      expect(() => adapter({ serveStatic: 'true' as any })).toThrow(
+        'Option "serveStatic" must be a boolean'
+      );
+      expect(() => adapter({ serveStatic: 1 as any })).toThrow(
+        'Option "serveStatic" must be a boolean'
+      );
+    });
+
+    it('should accept valid RegExp in external option', async () => {
+      const options: LambdaAdapterOptions = {
+        external: [/^aws-sdk/, 'custom-dep'],
+      };
+      const adapterInstance = adapter(options);
+      await adapterInstance.adapt(mockBuilder);
+
+      expect(mockBuilder.log.success).toHaveBeenCalledWith('AWS Lambda adapter complete');
+    });
+
+    it('should accept valid configuration', async () => {
+      const options: LambdaAdapterOptions = {
+        out: 'custom-build',
+        precompress: true,
+        envPrefix: 'MY_APP_',
+        binaryMediaTypes: ['image/*', 'application/pdf'],
+        bodySizeLimit: 1048576,
+        external: ['aws-sdk'],
+        serveStatic: true,
+      };
+      const adapterInstance = adapter(options);
+      await adapterInstance.adapt(mockBuilder);
+
+      expect(mockBuilder.log.success).toHaveBeenCalledWith('AWS Lambda adapter complete');
+    });
+  });
 });

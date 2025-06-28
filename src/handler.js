@@ -2,13 +2,14 @@ import 'SHIMS';
 import { env } from 'ENV';
 import { manifest, prerendered } from 'MANIFEST';
 import { Server } from 'SERVER';
-import { readFileSync } from 'node:fs';
-import { dirname, extname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   convertLambdaEventToWebRequest,
   convertWebResponseToLambdaEvent,
 } from '@foladayo/lambda-adapter-kit';
+import { createFileServer } from '@foladayo/web-file-server';
+import invariant from 'tiny-invariant';
 
 /* global ENV_PREFIX */
 
@@ -21,9 +22,21 @@ const serveStatic = SERVE_STATIC;
 // Get the directory of this handler file
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-await server.init({
-  env: process.env,
-});
+// Initialize server with timeout protection
+const SERVER_INIT_TIMEOUT = 10000; // 10 seconds
+try {
+  await Promise.race([
+    server.init({
+      env: process.env,
+    }),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Server initialization timeout')), SERVER_INIT_TIMEOUT)
+    ),
+  ]);
+} catch (error) {
+  console.error('Server initialization failed:', error);
+  // Continue execution - the handler will return an error if needed
+}
 
 /**
  * Extract client IP address from Lambda event
@@ -64,71 +77,32 @@ function isALBEvent(event) {
   return event.requestContext && 'elb' in event.requestContext;
 }
 
-/**
- * Check if request is for static assets
- * @param {string} pathname
- * @returns {boolean}
- */
-function isStaticAsset(pathname) {
-  return (
-    pathname.startsWith('/_app/') ||
-    pathname.startsWith('/favicon.') ||
-    pathname.endsWith('.css') ||
-    pathname.endsWith('.js') ||
-    pathname.endsWith('.woff') ||
-    pathname.endsWith('.woff2') ||
-    pathname.endsWith('.png') ||
-    pathname.endsWith('.jpg') ||
-    pathname.endsWith('.jpeg') ||
-    pathname.endsWith('.gif') ||
-    pathname.endsWith('.svg') ||
-    pathname.endsWith('.webp') ||
-    pathname.endsWith('.ico')
-  );
-}
+// Create file server instances for different asset types
+let clientFileServer = null;
+let prerenderedFileServer = null;
 
-/**
- * Serve static files from the bundled client directory
- * @param {string} pathname - The requested pathname
- * @returns {Promise<Response|null>} - Response for static file or null if not found
- */
-async function tryServeStaticFile(pathname) {
-  try {
-    const fullPath = join(__dirname, 'client', pathname);
-    const content = readFileSync(fullPath);
+if (serveStatic) {
+  // Client assets - SvelteKit's built JS/CSS with aggressive caching for immutable files
+  clientFileServer = createFileServer({
+    root: join(__dirname, 'client'),
+    compression: true,
+    cacheControl: {
+      '/_app/immutable/.*': 'public,max-age=31536000,immutable',
+      '.*': 'public,max-age=3600',
+    },
+    etag: true,
+  });
 
-    // Determine content type
-    const ext = extname(pathname).toLowerCase();
-    const contentType =
-      {
-        '.js': 'application/javascript',
-        '.css': 'text/css',
-        '.ico': 'image/x-icon',
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.svg': 'image/svg+xml',
-        '.webp': 'image/webp',
-        '.woff': 'font/woff',
-        '.woff2': 'font/woff2',
-        '.ttf': 'font/ttf',
-        '.eot': 'application/vnd.ms-fontobject',
-      }[ext] || 'application/octet-stream';
-
-    return new Response(content, {
-      status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Cache-Control': pathname.includes('/immutable/')
-          ? 'public, max-age=31536000, immutable'
-          : 'public, max-age=3600',
-      },
-    });
-  } catch {
-    // File not found or error reading
-    return null;
-  }
+  // Prerendered pages - different caching strategy for HTML vs other assets
+  prerenderedFileServer = createFileServer({
+    root: join(__dirname, 'prerendered'),
+    compression: true,
+    cacheControl: {
+      '\\.html$': 'no-cache',
+      '.*': 'public,max-age=3600',
+    },
+    etag: true,
+  });
 }
 
 /**
@@ -137,22 +111,114 @@ async function tryServeStaticFile(pathname) {
  * @param {any} context
  * @returns {Promise<any>}
  */
+/**
+ * Check if response size exceeds Lambda limits
+ * @param {Response} response - Web Response object
+ * @returns {Promise<boolean>}
+ */
+async function isResponseTooLarge(response) {
+  const LAMBDA_RESPONSE_LIMIT = 6 * 1024 * 1024; // 6MB in bytes
+
+  // Clone response to avoid consuming the original
+  const clonedResponse = response.clone();
+  const body = await clonedResponse.text();
+  const bodySize = new TextEncoder().encode(body).length;
+
+  // Account for headers and metadata overhead (rough estimate)
+  const headersSize = JSON.stringify(Object.fromEntries(response.headers)).length;
+  const totalSize = bodySize + headersSize + 1024; // 1KB buffer for metadata
+
+  return totalSize > LAMBDA_RESPONSE_LIMIT;
+}
+
+/**
+ * Create a 413 response for oversized content
+ * @returns {Response}
+ */
+function createOversizedResponse() {
+  return new Response(
+    JSON.stringify({
+      error: 'Payload Too Large',
+      message: 'Response exceeds Lambda size limits',
+    }),
+    {
+      status: 413,
+      headers: {
+        'content-type': 'application/json',
+        'cache-control': 'no-cache',
+      },
+    }
+  );
+}
+
+/**
+ * Validate Lambda event structure using tiny-invariant
+ * @param {any} event - Lambda event
+ */
+function validateLambdaEvent(event) {
+  invariant(event && typeof event === 'object', 'Lambda event must be a valid object');
+  invariant(
+    event.headers && typeof event.headers === 'object',
+    'Lambda event must have headers object'
+  );
+  invariant(
+    event.requestContext && typeof event.requestContext === 'object',
+    'Lambda event must have requestContext object'
+  );
+
+  const hasMethod = event.httpMethod || event.requestContext?.http?.method;
+  invariant(hasMethod, 'Lambda event must have HTTP method');
+
+  const hasPath = event.path || event.rawPath;
+  invariant(hasPath, 'Lambda event must have path');
+}
+
+/**
+ * @param {any} event
+ * @param {any} context
+ */
 export const handler = async (event, context) => {
   try {
+    // Validate Lambda event structure
+    validateLambdaEvent(event);
+
     const webRequest = convertLambdaEventToWebRequest(event);
     const pathname = new URL(webRequest.url).pathname;
 
-    if (prerendered.has(pathname)) {
-      //TODO: Handle prerendered pages
-    } else if (serveStatic && isStaticAsset(pathname)) {
-      const staticFileResponse = await tryServeStaticFile(pathname);
-      if (staticFileResponse) {
-        return await convertWebResponseToLambdaEvent(staticFileResponse, {
+    // Handle prerendered pages first
+    if (serveStatic && prerendered.has(pathname) && prerenderedFileServer) {
+      const prerenderedResponse = await prerenderedFileServer(webRequest);
+      if (prerenderedResponse.status !== 404) {
+        // Check response size before returning
+        if (await isResponseTooLarge(prerenderedResponse)) {
+          return await convertWebResponseToLambdaEvent(createOversizedResponse(), {
+            binaryMediaTypes,
+            multiValueHeaders: isALBEvent(event),
+          });
+        }
+        return await convertWebResponseToLambdaEvent(prerenderedResponse, {
           binaryMediaTypes,
           multiValueHeaders: isALBEvent(event),
         });
       }
-      // If static file not found, fall through to SvelteKit
+    }
+
+    // Handle client assets (JS, CSS, images, etc.)
+    if (serveStatic && clientFileServer) {
+      const clientResponse = await clientFileServer(webRequest);
+      if (clientResponse.status !== 404) {
+        // Check response size before returning
+        if (await isResponseTooLarge(clientResponse)) {
+          return await convertWebResponseToLambdaEvent(createOversizedResponse(), {
+            binaryMediaTypes,
+            multiValueHeaders: isALBEvent(event),
+          });
+        }
+        return await convertWebResponseToLambdaEvent(clientResponse, {
+          binaryMediaTypes,
+          multiValueHeaders: isALBEvent(event),
+        });
+      }
     }
 
     const response = await server.respond(webRequest, {
@@ -164,20 +230,59 @@ export const handler = async (event, context) => {
       getClientAddress: () => extractClientIp(event),
     });
 
+    // Check response size before returning
+    if (await isResponseTooLarge(response)) {
+      return await convertWebResponseToLambdaEvent(createOversizedResponse(), {
+        binaryMediaTypes,
+        multiValueHeaders: isALBEvent(event),
+      });
+    }
+
     return await convertWebResponseToLambdaEvent(response, {
       binaryMediaTypes,
       multiValueHeaders: isALBEvent(event),
     });
   } catch (error) {
+    // Log error for debugging (in production, ensure logs don't contain sensitive data)
     console.error('Lambda handler error:', error);
+
+    // Check if this is a validation error (from tiny-invariant)
+    const isValidationError = error instanceof Error && error.message.includes('Lambda event');
+
+    if (isValidationError) {
+      return {
+        statusCode: 400,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          error: 'Bad Request',
+          message: error.message,
+        }),
+        isBase64Encoded: false,
+      };
+    }
+
+    // Sanitize error response for security
+    const isDevelopment = env('NODE_ENV') === 'development';
+    let errorMessage = 'An unexpected error occurred';
+
+    if (isDevelopment && error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    // Ensure we don't leak sensitive information in error responses
+    const sanitizedError = {
+      error: 'Internal Server Error',
+      message: errorMessage,
+      ...(isDevelopment && { timestamp: new Date().toISOString() }),
+    };
 
     return {
       statusCode: 500,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        error: 'Internal Server Error',
-        message: env('NODE_ENV') === 'development' ? error.message : 'An unexpected error occurred',
-      }),
+      headers: {
+        'content-type': 'application/json',
+        'cache-control': 'no-cache, no-store, must-revalidate',
+      },
+      body: JSON.stringify(sanitizedError),
       isBase64Encoded: false,
     };
   }

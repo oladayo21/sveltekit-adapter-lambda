@@ -17,7 +17,9 @@
       "Bash(find:*)",
       "Bash(mkdir:*)",
       "Bash(cp:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh repo view:*)"
     ],
     "deny": []
   }
