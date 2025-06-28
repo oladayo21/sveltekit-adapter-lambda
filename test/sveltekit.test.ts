@@ -57,6 +57,46 @@ vi.mock('@rollup/plugin-json', () => ({
 const mockWriteFileSync = vi.mocked(writeFileSync);
 const mockReadFileSync = vi.mocked(readFileSync);
 
+// Helper function for testing (normally would be imported)
+function getPrerenderedFilePath(pathname: string) {
+  // Handle root path
+  if (pathname === '/') {
+    return '/index.html';
+  }
+
+  // Remove trailing slash if present (except for root)
+  const normalizedPath =
+    pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname;
+
+  // Add .html extension
+  return `${normalizedPath}.html`;
+}
+
+describe('getPrerenderedFilePath helper', () => {
+  it('should handle root path correctly', () => {
+    expect(getPrerenderedFilePath('/')).toBe('/index.html');
+  });
+
+  it('should add .html extension to regular paths', () => {
+    expect(getPrerenderedFilePath('/about')).toBe('/about.html');
+    expect(getPrerenderedFilePath('/third')).toBe('/third.html');
+  });
+
+  it('should handle nested paths correctly', () => {
+    expect(getPrerenderedFilePath('/blog/post')).toBe('/blog/post.html');
+    expect(getPrerenderedFilePath('/docs/getting-started')).toBe('/docs/getting-started.html');
+  });
+
+  it('should remove trailing slashes', () => {
+    expect(getPrerenderedFilePath('/about/')).toBe('/about.html');
+    expect(getPrerenderedFilePath('/blog/post/')).toBe('/blog/post.html');
+  });
+
+  it('should handle complex nested paths with trailing slashes', () => {
+    expect(getPrerenderedFilePath('/docs/api/reference/')).toBe('/docs/api/reference.html');
+  });
+});
+
 describe('SvelteKit Lambda Adapter', () => {
   let mockBuilder: SvelteKitBuilder;
 

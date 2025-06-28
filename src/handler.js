@@ -114,6 +114,26 @@ if (serveStatic) {
  * @returns {Promise<any>}
  */
 /**
+ * Convert a prerendered route path to the corresponding file path
+ * SvelteKit saves prerendered routes as .html files
+ * @param {string} pathname - The request pathname
+ * @returns {string} The file path to look for
+ */
+function getPrerenderedFilePath(pathname) {
+  // Handle root path
+  if (pathname === '/') {
+    return '/index.html';
+  }
+
+  // Remove trailing slash if present (except for root)
+  const normalizedPath =
+    pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname;
+
+  // Add .html extension
+  return `${normalizedPath}.html`;
+}
+
+/**
  * Check if response size exceeds Lambda limits
  * @param {Response} response - Web Response object
  * @returns {Promise<boolean>}
@@ -189,7 +209,20 @@ export const handler = async (event, context) => {
 
     // Handle prerendered pages first
     if (serveStatic && prerendered.has(pathname) && prerenderedFileServer) {
-      const prerenderedResponse = await prerenderedFileServer(webRequest);
+      // Convert route path to file path (e.g., /third -> /third.html)
+      const filePath = getPrerenderedFilePath(pathname);
+
+      // Create request with the correct file path
+      const fileUrl = new URL(webRequest.url);
+      fileUrl.pathname = filePath;
+
+      const fileRequest = new Request(fileUrl.toString(), {
+        method: webRequest.method,
+        headers: webRequest.headers,
+        body: webRequest.body,
+      });
+
+      const prerenderedResponse = await prerenderedFileServer(fileRequest);
       if (prerenderedResponse.status !== 404) {
         // Check response size before returning
         if (await isResponseTooLarge(prerenderedResponse)) {

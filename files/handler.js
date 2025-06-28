@@ -677,7 +677,7 @@ const binaryMediaTypes = BINARY_MEDIA_TYPES;
 const serveStatic = SERVE_STATIC;
 
 // Get the directory of this handler file
-const dir = dirname(fileURLToPath(import.meta.url));
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Initialize server with timeout protection
 const SERVER_INIT_TIMEOUT = 10000; // 10 seconds
@@ -734,29 +734,14 @@ function isALBEvent(event) {
   return event.requestContext && 'elb' in event.requestContext;
 }
 
-/**
- * Create file server only if directory exists (like SvelteKit node adapter)
- * @param {string} path - Directory path
- * @param {any} options - File server options
- * @returns {Function|null} - File server function or null if directory doesn't exist
- */
-function serve(path, options = {}) {
-  try {
-    statSync(path);
-    return createFileServer({ root: path, ...options });
-  } catch {
-    return null;
-  }
-}
-
 // Create file server instances for different asset types
 let clientFileServer = null;
 let prerenderedFileServer = null;
-let staticFileServer = null;
 
 if (serveStatic) {
   // Client assets - SvelteKit's built JS/CSS with aggressive caching for immutable files
-  clientFileServer = serve(join(dir, 'client'), {
+  clientFileServer = createFileServer({
+    root: join(__dirname, 'client'),
     compression: true,
     cacheControl: {
       '/_app/immutable/.*': 'public,max-age=31536000,immutable',
@@ -765,22 +750,18 @@ if (serveStatic) {
     etag: true,
   });
 
-  // Static assets
-  staticFileServer = serve(join(dir, 'static'), {
-    compression: true,
-    cacheControl: 'public,max-age=3600',
-    etag: true,
-  });
-
-  // Prerendered pages - different caching strategy for HTML vs other assets
-  prerenderedFileServer = serve(join(dir, 'prerendered'), {
-    compression: true,
-    cacheControl: {
-      '\\.html$': 'no-cache',
-      '.*': 'public,max-age=3600',
-    },
-    etag: true,
-  });
+  // Only create prerendered file server if there are prerendered pages
+  if (prerendered.size > 0) {
+    prerenderedFileServer = createFileServer({
+      root: join(__dirname, 'prerendered'),
+      compression: true,
+      cacheControl: {
+        '\\.html$': 'no-cache',
+        '.*': 'public,max-age=3600',
+      },
+      etag: true,
+    });
+  }
 }
 
 /**
@@ -789,6 +770,27 @@ if (serveStatic) {
  * @param {any} context
  * @returns {Promise<any>}
  */
+/**
+ * Convert a prerendered route path to the corresponding file path
+ * SvelteKit saves prerendered routes as .html files
+ * @param {string} pathname - The request pathname
+ * @returns {string} The file path to look for
+ */
+function getPrerenderedFilePath(pathname) {
+  // Handle root path
+  if (pathname === '/') {
+    return '/index.html';
+  }
+  
+  // Remove trailing slash if present (except for root)
+  const normalizedPath = pathname.endsWith('/') && pathname !== '/' 
+    ? pathname.slice(0, -1) 
+    : pathname;
+  
+  // Add .html extension
+  return `${normalizedPath}.html`;
+}
+
 /**
  * Check if response size exceeds Lambda limits
  * @param {Response} response - Web Response object
@@ -863,7 +865,38 @@ const handler = async (event, context) => {
     const webRequest = u(event);
     const pathname = new URL(webRequest.url).pathname;
 
-    // Handle client assets first (JS, CSS, images, etc.)
+    // Handle prerendered pages first
+    if (serveStatic && prerendered.has(pathname) && prerenderedFileServer) {
+      // Convert route path to file path (e.g., /third -> /third.html)
+      const filePath = getPrerenderedFilePath(pathname);
+      
+      // Create request with the correct file path
+      const fileUrl = new URL(webRequest.url);
+      fileUrl.pathname = filePath;
+      
+      const fileRequest = new Request(fileUrl.toString(), {
+        method: webRequest.method,
+        headers: webRequest.headers,
+        body: webRequest.body,
+      });
+      
+      const prerenderedResponse = await prerenderedFileServer(fileRequest);
+      if (prerenderedResponse.status !== 404) {
+        // Check response size before returning
+        if (await isResponseTooLarge(prerenderedResponse)) {
+          return await l(createOversizedResponse(), {
+            binaryMediaTypes,
+            multiValueHeaders: isALBEvent(event),
+          });
+        }
+        return await l(prerenderedResponse, {
+          binaryMediaTypes,
+          multiValueHeaders: isALBEvent(event),
+        });
+      }
+    }
+
+    // Handle client assets (JS, CSS, images, etc.)
     if (serveStatic && clientFileServer) {
       const clientResponse = await clientFileServer(webRequest);
       if (clientResponse.status !== 404) {
@@ -875,42 +908,6 @@ const handler = async (event, context) => {
           });
         }
         return await l(clientResponse, {
-          binaryMediaTypes,
-          multiValueHeaders: isALBEvent(event),
-        });
-      }
-    }
-
-    // Handle static assets
-    if (serveStatic && staticFileServer) {
-      const staticResponse = await staticFileServer(webRequest);
-      if (staticResponse.status !== 404) {
-        // Check response size before returning
-        if (await isResponseTooLarge(staticResponse)) {
-          return await l(createOversizedResponse(), {
-            binaryMediaTypes,
-            multiValueHeaders: isALBEvent(event),
-          });
-        }
-        return await l(staticResponse, {
-          binaryMediaTypes,
-          multiValueHeaders: isALBEvent(event),
-        });
-      }
-    }
-
-    // Handle prerendered pages
-    if (serveStatic && prerendered.has(pathname) && prerenderedFileServer) {
-      const prerenderedResponse = await prerenderedFileServer(webRequest);
-      if (prerenderedResponse.status !== 404) {
-        // Check response size before returning
-        if (await isResponseTooLarge(prerenderedResponse)) {
-          return await l(createOversizedResponse(), {
-            binaryMediaTypes,
-            multiValueHeaders: isALBEvent(event),
-          });
-        }
-        return await l(prerenderedResponse, {
           binaryMediaTypes,
           multiValueHeaders: isALBEvent(event),
         });
