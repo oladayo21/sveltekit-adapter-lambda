@@ -93,16 +93,18 @@ if (serveStatic) {
     etag: true,
   });
 
-  // Prerendered pages - different caching strategy for HTML vs other assets
-  prerenderedFileServer = createFileServer({
-    root: join(__dirname, 'prerendered'),
-    compression: true,
-    cacheControl: {
-      '\\.html$': 'no-cache',
-      '.*': 'public,max-age=3600',
-    },
-    etag: true,
-  });
+  // Only create prerendered file server if there are prerendered pages
+  if (prerendered.size > 0) {
+    prerenderedFileServer = createFileServer({
+      root: join(__dirname, 'prerendered'),
+      compression: true,
+      cacheControl: {
+        '\\.html$': 'no-cache',
+        '.*': 'public,max-age=3600',
+      },
+      etag: true,
+    });
+  }
 }
 
 /**
