@@ -677,7 +677,7 @@ const binaryMediaTypes = BINARY_MEDIA_TYPES;
 const serveStatic = SERVE_STATIC;
 
 // Get the directory of this handler file
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const dir = dirname(fileURLToPath(import.meta.url));
 
 // Initialize server with timeout protection
 const SERVER_INIT_TIMEOUT = 10000; // 10 seconds
@@ -734,14 +734,29 @@ function isALBEvent(event) {
   return event.requestContext && 'elb' in event.requestContext;
 }
 
+/**
+ * Create file server only if directory exists (like SvelteKit node adapter)
+ * @param {string} path - Directory path
+ * @param {any} options - File server options
+ * @returns {Function|null} - File server function or null if directory doesn't exist
+ */
+function serve(path, options = {}) {
+  try {
+    statSync(path);
+    return createFileServer({ root: path, ...options });
+  } catch {
+    return null;
+  }
+}
+
 // Create file server instances for different asset types
 let clientFileServer = null;
 let prerenderedFileServer = null;
+let staticFileServer = null;
 
 if (serveStatic) {
   // Client assets - SvelteKit's built JS/CSS with aggressive caching for immutable files
-  clientFileServer = createFileServer({
-    root: join(__dirname, 'client'),
+  clientFileServer = serve(join(dir, 'client'), {
     compression: true,
     cacheControl: {
       '/_app/immutable/.*': 'public,max-age=31536000,immutable',
@@ -750,9 +765,15 @@ if (serveStatic) {
     etag: true,
   });
 
+  // Static assets
+  staticFileServer = serve(join(dir, 'static'), {
+    compression: true,
+    cacheControl: 'public,max-age=3600',
+    etag: true,
+  });
+
   // Prerendered pages - different caching strategy for HTML vs other assets
-  prerenderedFileServer = createFileServer({
-    root: join(__dirname, 'prerendered'),
+  prerenderedFileServer = serve(join(dir, 'prerendered'), {
     compression: true,
     cacheControl: {
       '\\.html$': 'no-cache',
@@ -842,25 +863,7 @@ const handler = async (event, context) => {
     const webRequest = u(event);
     const pathname = new URL(webRequest.url).pathname;
 
-    // Handle prerendered pages first
-    if (serveStatic && prerendered.has(pathname) && prerenderedFileServer) {
-      const prerenderedResponse = await prerenderedFileServer(webRequest);
-      if (prerenderedResponse.status !== 404) {
-        // Check response size before returning
-        if (await isResponseTooLarge(prerenderedResponse)) {
-          return await l(createOversizedResponse(), {
-            binaryMediaTypes,
-            multiValueHeaders: isALBEvent(event),
-          });
-        }
-        return await l(prerenderedResponse, {
-          binaryMediaTypes,
-          multiValueHeaders: isALBEvent(event),
-        });
-      }
-    }
-
-    // Handle client assets (JS, CSS, images, etc.)
+    // Handle client assets first (JS, CSS, images, etc.)
     if (serveStatic && clientFileServer) {
       const clientResponse = await clientFileServer(webRequest);
       if (clientResponse.status !== 404) {
@@ -872,6 +875,42 @@ const handler = async (event, context) => {
           });
         }
         return await l(clientResponse, {
+          binaryMediaTypes,
+          multiValueHeaders: isALBEvent(event),
+        });
+      }
+    }
+
+    // Handle static assets
+    if (serveStatic && staticFileServer) {
+      const staticResponse = await staticFileServer(webRequest);
+      if (staticResponse.status !== 404) {
+        // Check response size before returning
+        if (await isResponseTooLarge(staticResponse)) {
+          return await l(createOversizedResponse(), {
+            binaryMediaTypes,
+            multiValueHeaders: isALBEvent(event),
+          });
+        }
+        return await l(staticResponse, {
+          binaryMediaTypes,
+          multiValueHeaders: isALBEvent(event),
+        });
+      }
+    }
+
+    // Handle prerendered pages
+    if (serveStatic && prerendered.has(pathname) && prerenderedFileServer) {
+      const prerenderedResponse = await prerenderedFileServer(webRequest);
+      if (prerenderedResponse.status !== 404) {
+        // Check response size before returning
+        if (await isResponseTooLarge(prerenderedResponse)) {
+          return await l(createOversizedResponse(), {
+            binaryMediaTypes,
+            multiValueHeaders: isALBEvent(event),
+          });
+        }
+        return await l(prerenderedResponse, {
           binaryMediaTypes,
           multiValueHeaders: isALBEvent(event),
         });
